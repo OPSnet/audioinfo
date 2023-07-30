@@ -395,6 +395,7 @@ impl AudioInfo {
             yaml.push_str("    md5: ");
             yaml.push_str(&file.md5);
             yaml.push('\n');
+            yaml.push('\n');
         }
         yaml
     }
