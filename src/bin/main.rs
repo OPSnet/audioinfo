@@ -1,12 +1,12 @@
 use audioinfo::AudioInfo;
-use clap::{Arg, ArgAction, Command};
+use clap::{crate_version, Arg, ArgAction, Command};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
 
 fn main() {
     let matches = Command::new("AudioInfo Generator")
-        .version("1.0")
+        .version(crate_version!())
         .about("Generates an audioinfo file for the given directory")
         .arg(
             Arg::new("directory")

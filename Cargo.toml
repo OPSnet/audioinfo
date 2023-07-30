@@ -10,7 +10,7 @@ claxon = "0.4.3"
 byteorder = "1.4.3"
 hex = "0.4.3"
 tracing = "0.1.37"
-clap = "4.3.19"
+clap = {version = "4.3.19", features = ["cargo"]}
 tracing-subscriber = "0.3"
 metaflac = "0.2.5"
 [[bin]]
