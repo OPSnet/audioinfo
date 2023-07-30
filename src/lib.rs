@@ -63,7 +63,6 @@ impl From<claxon::Error> for FlacLoadError {
     }
 }
 #[derive(Debug)]
-
 pub struct AudioInfo {
     type_: String,
     version: i32,
@@ -209,6 +208,7 @@ impl AudioInfo {
             Err(ProcessError::NonFlacError)
         }
     }
+
     fn calculate_rms_db_level<T>(samples: Vec<T>, bit_depth: i32) -> f64
     where
         T: Into<f64> + Clone,
@@ -268,6 +268,7 @@ impl AudioInfo {
         let crc32_hash = crc32.finalize();
         format!("{:08X}", crc32_hash)
     }
+
     fn generate_crc32_16bit(samples: &Vec<i16>) -> String {
         let mut crc32 = Hasher::new();
 
@@ -395,7 +396,6 @@ impl AudioInfo {
             yaml.push_str(&file.md5);
             yaml.push('\n');
         }
-
         yaml
     }
 }
