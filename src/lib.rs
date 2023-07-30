@@ -1,6 +1,5 @@
 use crc32fast::Hasher;
 use hex;
-use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::fmt;
 use std::fs::File;
@@ -63,18 +62,16 @@ impl From<claxon::Error> for FlacLoadError {
         FlacLoadError::FlacReaderError(err)
     }
 }
+#[derive(Debug)]
 
-#[derive(Debug, Serialize, Deserialize)]
 pub struct AudioInfo {
-    #[serde(rename = r#"type"#)]
     type_: String,
     version: i32,
     created_by: String,
     summary: Summary,
     files: Vec<AudioFile>,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct Summary {
     total_files: usize,
     total_duration: String,
@@ -83,7 +80,7 @@ struct Summary {
     channels: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct AudioFile {
     file_name: String,
     duration: String,
@@ -92,9 +89,26 @@ struct AudioFile {
     bit_depth: u32,
     channels: u32,
     peak_level: f32,
-    rms_db_level: f32,
+    rms_db_level: f64,
     crc32: String,
     md5: String,
+}
+
+impl Default for AudioFile {
+    fn default() -> Self {
+        Self {
+            file_name: String::default(),
+            duration: String::default(),
+            total_samples: 0,
+            sample_rate: 0,
+            bit_depth: 0,
+            channels: 0,
+            peak_level: 0.0,
+            rms_db_level: 0.0,
+            crc32: String::default(),
+            md5: String::default(),
+        }
+    }
 }
 
 impl AudioInfo {
@@ -114,7 +128,9 @@ impl AudioInfo {
             },
             files: songs,
         };
-        serde_yaml::to_string(&audio_info).unwrap()
+        //serde_yaml::to_string(&audio_info).unwrap()
+        let yaml_string = audio_info.to_yaml();
+        yaml_string
     }
 
     fn walk_dir(dir: &str) -> Vec<AudioFile> {
@@ -155,33 +171,39 @@ impl AudioInfo {
             let stream_info = reader.streaminfo();
             let total_samples = stream_info.samples.ok_or(ProcessError::NoSamplesFound)?;
             let bit_depth = stream_info.bits_per_sample;
-            let crc32_checksum: String = match bit_depth {
-                16 => Self::generate_crc32_16bit(
-                    reader
-                        .samples()
-                        .map(|sample| sample.unwrap_or(0) as i16)
-                        .collect(),
-                ),
-                24 => Self::generate_crc32_24bit(
-                    reader
-                        .samples()
-                        .map(|sample| sample.unwrap_or(0) as i32)
-                        .collect(),
-                ),
-                _ => return Err(ProcessError::UnsupportedBitDepth),
-            };
             let duration = total_samples as f32 / stream_info.sample_rate as f32;
-            let audio_info = AudioFile {
+
+            let mut audio_info = AudioFile {
                 file_name: entry.file_name().to_string_lossy().to_string(),
                 duration: Self::format_duration(duration),
                 total_samples,
                 sample_rate: stream_info.sample_rate,
                 bit_depth,
                 channels: stream_info.channels,
-                peak_level: 0.0,
-                rms_db_level: 0.0,
-                crc32: crc32_checksum,
                 md5: hex::encode(stream_info.md5sum),
+                ..Default::default()
+            };
+
+            match bit_depth {
+                16 => {
+                    let samples: Vec<i16> = reader
+                        .samples()
+                        .map(|sample| sample.unwrap_or(0) as i16)
+                        .collect();
+                    audio_info.crc32 = Self::generate_crc32_16bit(&samples);
+                    audio_info.peak_level = Self::calculate_peak_level_16bit(&samples);
+                    audio_info.rms_db_level = Self::calculate_rms_db_level(samples, 16);
+                }
+                24 => {
+                    let samples: Vec<i32> = reader
+                        .samples()
+                        .map(|sample| sample.unwrap_or(0) as i32)
+                        .collect();
+                    audio_info.crc32 = Self::generate_crc32_24bit(&samples);
+                    audio_info.peak_level = Self::calculate_peak_level_24bit(&samples);
+                    audio_info.rms_db_level = Self::calculate_rms_db_level(samples, 24);
+                }
+                _ => return Err(ProcessError::UnsupportedBitDepth),
             };
 
             Ok(audio_info)
@@ -189,12 +211,55 @@ impl AudioInfo {
             Err(ProcessError::NonFlacError)
         }
     }
+    fn calculate_rms_db_level<T>(samples: Vec<T>, bit_depth: i32) -> f64
+    where
+        T: Into<f64> + Clone,
+    {
+        if samples.is_empty() {
+            return f64::NEG_INFINITY; // Return -∞ if the samples vector is empty
+        }
 
-    fn generate_crc32_24bit(samples: Vec<i32>) -> String {
+        let max_amplitude = Self::get_max_amplitude(bit_depth) as f64;
+        let squared_sum: f64 = samples
+            .iter()
+            .map(|sample| {
+                let normalized_sample = (*sample).clone().into() / max_amplitude;
+                normalized_sample * normalized_sample
+            })
+            .sum();
+
+        let rms_amplitude = (squared_sum / samples.len() as f64).sqrt();
+        let rms_db_level = 20.0 * rms_amplitude.log10();
+        (rms_db_level * 100.0).round() / 100.0
+    }
+
+    fn get_max_amplitude(bit_depth: i32) -> i32 {
+        match bit_depth {
+            16 => i16::MAX as i32,
+            24 => (1 << 23) - 1, // For 24-bit audio, the maximum value is 2^23 - 1
+            // Add other bit depth cases here if needed
+            _ => i16::MAX as i32, // Default to 16-bit audio
+        }
+    }
+
+    fn calculate_peak_level_16bit(samples: &Vec<i16>) -> f32 {
+        let max_amplitude = samples.iter().fold(0, |max, &sample| sample.abs().max(max));
+        let peak_level = max_amplitude as f32 / i16::MAX as f32;
+        peak_level
+    }
+
+    fn calculate_peak_level_24bit(samples: &Vec<i32>) -> f32 {
+        let max_amplitude = samples.iter().fold(0, |max, &sample| sample.abs().max(max));
+        let max_possible_amplitude = Self::get_max_amplitude(24);
+        let peak_level = max_amplitude as f32 / max_possible_amplitude as f32;
+        (peak_level * 1000000.0).trunc() / 1000000.0
+    }
+
+    fn generate_crc32_24bit(samples: &Vec<i32>) -> String {
         let mut crc32 = Hasher::new();
 
         for sample in samples {
-            let sample_24bit = ((sample as i32) << 8) >> 8;
+            let sample_24bit = ((*sample as i32) << 8) >> 8;
             let bytes = [
                 (sample_24bit & 0xFF) as u8,
                 ((sample_24bit >> 8) & 0xFF) as u8,
@@ -203,9 +268,9 @@ impl AudioInfo {
             crc32.update(&bytes);
         }
         let crc32_hash = crc32.finalize();
-        format!("{:X}", crc32_hash)
+        format!("{:08X}", crc32_hash)
     }
-    fn generate_crc32_16bit(samples: Vec<i16>) -> String {
+    fn generate_crc32_16bit(samples: &Vec<i16>) -> String {
         let mut crc32 = Hasher::new();
 
         for sample in samples {
@@ -253,5 +318,86 @@ impl AudioInfo {
         let flac_file = File::open(path)?;
         let reader = claxon::FlacReader::new(flac_file)?;
         Ok(reader)
+    }
+
+    fn to_yaml(&self) -> String {
+        let mut yaml = String::new();
+        yaml.push_str("type: ");
+        yaml.push_str(&self.type_);
+        yaml.push('\n');
+
+        yaml.push_str("version: ");
+        yaml.push_str(&self.version.to_string());
+        yaml.push('\n');
+
+        yaml.push_str("created_by: ");
+        yaml.push_str(&self.created_by);
+        yaml.push('\n');
+
+        yaml.push_str("summary:\n");
+        yaml.push_str("  total_files: ");
+        yaml.push_str(&self.summary.total_files.to_string());
+        yaml.push('\n');
+
+        yaml.push_str("  total_duration: ");
+        yaml.push_str(&self.summary.total_duration);
+        yaml.push('\n');
+
+        yaml.push_str("  sample_rate: ");
+        yaml.push_str(&self.summary.sample_rate.to_string());
+        yaml.push('\n');
+
+        yaml.push_str("  bit_depth: ");
+        yaml.push_str(&self.summary.bit_depth.to_string());
+        yaml.push('\n');
+
+        yaml.push_str("  channels: ");
+        yaml.push_str(&self.summary.channels.to_string());
+        yaml.push('\n');
+
+        yaml.push_str("files:\n");
+        for file in &self.files {
+            yaml.push_str("  - file_name: ");
+            yaml.push_str(&file.file_name);
+            yaml.push('\n');
+
+            yaml.push_str("    duration: ");
+            yaml.push_str(&file.duration);
+            yaml.push('\n');
+
+            yaml.push_str("    total_samples: ");
+            yaml.push_str(&file.total_samples.to_string());
+            yaml.push('\n');
+
+            yaml.push_str("    sample_rate: ");
+            yaml.push_str(&file.sample_rate.to_string());
+            yaml.push('\n');
+
+            yaml.push_str("    bit_depth: ");
+            yaml.push_str(&file.bit_depth.to_string());
+            yaml.push('\n');
+
+            yaml.push_str("    channels: ");
+            yaml.push_str(&file.channels.to_string());
+            yaml.push('\n');
+
+            yaml.push_str("    peak_level: ");
+            yaml.push_str(&format!("{:.6}", file.peak_level));
+            yaml.push('\n');
+
+            yaml.push_str("    rms_db_level: ");
+            yaml.push_str(&format!("{:.2}", file.rms_db_level));
+            yaml.push('\n');
+
+            yaml.push_str("    crc32: ");
+            yaml.push_str(&file.crc32);
+            yaml.push('\n');
+
+            yaml.push_str("    md5: ");
+            yaml.push_str(&file.md5);
+            yaml.push('\n');
+        }
+
+        yaml
     }
 }
