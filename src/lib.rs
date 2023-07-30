@@ -276,7 +276,7 @@ impl AudioInfo {
             crc32.update(&sample.to_le_bytes());
         }
         let crc32_hash = crc32.finalize();
-        format!("{:X}", crc32_hash)
+        format!("{:08X}", crc32_hash)
     }
 
     fn add_durations(audio_files: &Vec<AudioFile>) -> String {
