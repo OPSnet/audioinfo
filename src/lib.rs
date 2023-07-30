@@ -128,9 +128,7 @@ impl AudioInfo {
             },
             files: songs,
         };
-        //serde_yaml::to_string(&audio_info).unwrap()
-        let yaml_string = audio_info.to_yaml();
-        yaml_string
+        audio_info.to_yaml()
     }
 
     fn walk_dir(dir: &str) -> Vec<AudioFile> {
