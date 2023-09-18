@@ -1,17 +1,21 @@
 use audioinfo::AudioInfo;
-use clap::{crate_version, Arg, ArgAction, Command};
+use clap::{crate_version, value_parser, Arg, ArgAction, Command, ValueHint};
 use std::fs;
 use std::io::Write;
-use std::path::Path;
-
+use std::path::{Path, PathBuf};
 fn main() {
     let matches = Command::new("AudioInfo Generator")
         .version(crate_version!())
+        .author("Spider")
         .about("Generates an audioinfo file for the given directory")
         .arg(
             Arg::new("directory")
+                .short('i')
+                .long("input")
                 .help("Sets the directory to scan for FLAC files")
-                .required(true),
+                .required(true)
+                .value_hint(ValueHint::FilePath)
+                .value_parser(value_parser!(PathBuf)),
         )
         .arg(Arg::new("output").help("Sets the output directory for audioinfo"))
         .arg(
@@ -30,7 +34,6 @@ fn main() {
         )
         .get_matches();
 
-    let directory = matches.get_one::<String>("directory").expect("required");
     let output = matches.get_one::<String>("output");
     let print = matches.get_flag("print");
 
@@ -43,7 +46,12 @@ fn main() {
         )
         .expect("Failed to set global default tracing subscriber");
     }
-    let audio_info_string = AudioInfo::generate_audio_info_from_path(directory.to_string());
+    let directory = matches
+        .get_one::<PathBuf>("directory")
+        .expect("required")
+        .clone();
+
+    let audio_info_string = AudioInfo::generate_audio_info_from_path(directory);
 
     if print {
         print!("{:}", audio_info_string);

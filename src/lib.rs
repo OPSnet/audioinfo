@@ -3,7 +3,7 @@ use hex;
 use std::cmp::min;
 use std::fmt;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 static AUDIOINFO_VERSION: i32 = 0;
 static AUDIOINFO_FILETYPE: &str = "audioinfo";
@@ -111,7 +111,7 @@ impl Default for AudioFile {
 }
 
 impl AudioInfo {
-    pub fn generate_audio_info_from_path(path: String) -> String {
+    pub fn generate_audio_info_from_path(path: PathBuf) -> String {
         let songs = Self::walk_dir(&path);
         let total_duration = Self::add_durations(&songs);
         let audio_info = AudioInfo {
@@ -130,9 +130,9 @@ impl AudioInfo {
         audio_info.to_yaml()
     }
 
-    fn walk_dir(dir: &str) -> Vec<AudioFile> {
+    fn walk_dir(dir: &PathBuf) -> Vec<AudioFile> {
         let mut songs: Vec<AudioFile> = Vec::new();
-        for entry in WalkDir::new(dir.trim_end_matches("\\").trim_end_matches("/"))
+        for entry in WalkDir::new(dir)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|f| {
