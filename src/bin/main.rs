@@ -9,7 +9,7 @@ fn main() {
         .author("Spider")
         .about("Generates an audioinfo file for the given directory")
         .arg(
-            Arg::new("directory")
+            Arg::new("input")
                 .short('i')
                 .long("input")
                 .help("Sets the directory to scan for FLAC files")
@@ -47,7 +47,7 @@ fn main() {
         .expect("Failed to set global default tracing subscriber");
     }
     let directory = matches
-        .get_one::<PathBuf>("directory")
+        .get_one::<PathBuf>("input")
         .expect("required")
         .clone();
 
