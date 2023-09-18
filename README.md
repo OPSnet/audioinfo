@@ -2,7 +2,6 @@
 The AudioInfo Generator is a command-line tool that generates an audioinfo file for a given directory containing FLAC files. This README provides an overview of the tool's functionality, usage, and command-line options.
 
 # Usage
-
 ```audioinfo-generator [FLAGS] --directory <DIRECTORY> [--output <OUTPUT>] [--print]```
 
 *  `--directory: Sets the directory to scan for FLAC files (required).`
@@ -13,8 +12,13 @@ The AudioInfo Generator is a command-line tool that generates an audioinfo file 
 
 * `--verbose or -v: Enables verbose (debug) output. This option can be used to get more detailed information during the execution of the tool.`
 
-
+# Trailing slashes
+Currently clap has a issue with trailing slashes on paths. So if you encounter a issue when trying to generate a file with a path such as
+```.\audioinfo.exe -i 'H:\test\test\test_album\'```
+Please remove the trailing slash as this causes clap to attach a ``"`` to the end
 # Examples
+## Generate an audioinfo file for a directory 
+```.\audioinfo.exe -i 'H:\test\test\test_album'
 ## Generate an audioinfo file for FLAC files in a specified directory and save it to a custom output file:
 ```audioinfo --directory /path/to/your/flac_files --output /path/to/output/audioinfo.txt```
 ## Generate an audioinfo file for FLAC files in a specified directory and print the content to the standard output:
