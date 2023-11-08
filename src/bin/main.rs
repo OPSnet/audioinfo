@@ -46,12 +46,20 @@ fn main() {
         )
         .expect("Failed to set global default tracing subscriber");
     }
-    let directory = matches
+    let path = matches
         .get_one::<PathBuf>("input")
         .expect("required")
         .clone();
 
-    let audio_info_string = AudioInfo::generate_audio_info_from_path(directory);
+    let full_path = match fs::canonicalize(path) {
+        Ok(full_path) => full_path,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let audio_info_string = AudioInfo::generate_audio_info_from_path(full_path);
 
     if print {
         print!("{:}", audio_info_string);
