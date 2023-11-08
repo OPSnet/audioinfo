@@ -71,9 +71,9 @@ fn save_file(path: String, audio_info_string: String) {
     let audioinfo_file_path = Path::new(&path);
     if let Ok(mut file) = fs::File::create(audioinfo_file_path) {
         if let Err(e) = file.write_all(audio_info_string.as_bytes()) {
-            println!("Error writing to audioinfo file: {}", e);
+            eprintln!("Error writing to audioinfo file: {}", e);
         }
     } else {
-        println!("Error creating audioinfo file");
+        eprintln!("Error creating audioinfo file");
     }
 }
